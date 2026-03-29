@@ -11,6 +11,9 @@ interface MainLayoutProps {
   onNewTask: () => void;
   onSettings: () => void;
   hasApiKey?: boolean;
+  isConnected?: boolean;
+  model?: string | null;
+  provider?: string;
 }
 
 export function MainLayout({
@@ -21,10 +24,20 @@ export function MainLayout({
   onNewTask,
   onSettings,
   hasApiKey,
+  isConnected,
+  model,
+  provider,
 }: MainLayoutProps) {
   return (
     <div className="h-screen flex flex-col bg-gray-950">
-      <Header onNewTask={onNewTask} onSettings={onSettings} hasApiKey={hasApiKey} />
+      <Header
+        onNewTask={onNewTask}
+        onSettings={onSettings}
+        hasApiKey={hasApiKey}
+        isConnected={isConnected}
+        model={model}
+        provider={provider}
+      />
       <div className="flex-1 flex overflow-hidden">
         <Sidebar
           tasks={tasks}

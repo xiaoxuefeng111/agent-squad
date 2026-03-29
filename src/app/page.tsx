@@ -16,6 +16,9 @@ export default function HomePage() {
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [isApiConnected, setIsApiConnected] = useState(false);
+  const [currentModel, setCurrentModel] = useState<string | null>(null);
+  const [currentProvider, setCurrentProvider] = useState<string>('');
   const [isRunning, setIsRunning] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,8 +59,39 @@ export default function HomePage() {
       const response = await fetch('/api/settings');
       const data = await response.json();
       setHasApiKey(data.hasApiKey);
+      setCurrentModel(data.model);
+
+      // 判断提供商
+      if (data.baseUrl) {
+        if (data.baseUrl.includes('dashscope')) {
+          setCurrentProvider('aliyun');
+        } else {
+          setCurrentProvider('custom');
+        }
+      } else {
+        setCurrentProvider('anthropic');
+      }
+
+      // 如果有配置，自动测试连接
+      if (data.hasApiKey) {
+        testApiConnection();
+      }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
+    }
+  };
+
+  const testApiConnection = async () => {
+    try {
+      const response = await fetch('/api/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      setIsApiConnected(data.success);
+    } catch (error) {
+      setIsApiConnected(false);
     }
   };
 
@@ -197,6 +231,7 @@ export default function HomePage() {
   const handleSettingsClose = () => {
     setIsSettingsOpen(false);
     fetchSettings(); // Refresh settings after closing
+    testApiConnection(); // 重新测试连接
   };
 
   return (
@@ -207,6 +242,9 @@ export default function HomePage() {
       onNewTask={() => setIsNewTaskOpen(true)}
       onSettings={() => setIsSettingsOpen(true)}
       hasApiKey={hasApiKey}
+      isConnected={isApiConnected}
+      model={currentModel}
+      provider={currentProvider}
     >
       <div className="h-full flex">
         <div className="w-1/2 border-r border-gray-700 overflow-y-auto">
