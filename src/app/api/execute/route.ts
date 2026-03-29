@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTaskById, updateTaskStatus } from '@/lib/storage/database';
-import { agentManager, createWSMessageCallback, createWSStatusCallback } from '@/lib/agents/coordinator';
-import { getWebSocketManager } from '@/lib/websocket/server';
+import { agentManager } from '@/lib/agents/coordinator';
+import { getWebSocketManager, createWSMessageCallback, createWSStatusCallback } from '@/lib/websocket/server';
 
 // POST /api/execute - Start, pause, resume, or stop agent execution
 export async function POST(request: NextRequest) {

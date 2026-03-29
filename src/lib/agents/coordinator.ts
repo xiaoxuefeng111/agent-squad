@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/claude-agent-sdk';
+import Anthropic from '@anthropic-ai/sdk';
 import { Task, AgentRole, ChatMessage, PermissionMode, ScenarioTemplate } from '@/types';
 import { createChatMessage, updateTaskStatus } from '@/lib/storage/database';
 import { getTemplateById } from '@/lib/storage/config';
@@ -16,7 +16,7 @@ export class CoordinatorAgent {
   private messageCallback: MessageCallback;
   private statusCallback: StatusCallback;
   private currentRoleIndex: number;
-  private conversationHistory: Anthropic.Message[];
+  private conversationHistory: { role: 'user' | 'assistant'; content: string }[];
   private permissionMode: PermissionMode;
 
   constructor(
@@ -178,7 +178,11 @@ ${permissionInfo}
     }
 
     // Store in conversation history
-    this.conversationHistory.push(response);
+    const content = this.extractContentFromResponse(response);
+    this.conversationHistory.push({
+      role: 'assistant',
+      content,
+    });
   }
 
   // Main agent loop - handles subagent dispatching
@@ -220,12 +224,11 @@ ${permissionInfo}
   }
 
   // Get coordinator's decision on what to do next
-  private async getCoordinatorDecision(): Promise<{
-    type: 'dispatch' | 'conclude' | 'human_intervention';
-    roleId?: string;
-    taskDescription?: string;
-    summary?: string;
-  }> {
+  private async getCoordinatorDecision(): Promise<
+    | { type: 'dispatch'; roleId: string; taskDescription: string }
+    | { type: 'conclude'; summary: string }
+    | { type: 'human_intervention'; reason: string }
+  > {
     const lastContent = this.extractLastTextContent();
 
     const decisionPrompt = `基于当前执行状态，请做出下一步决策:
@@ -243,10 +246,7 @@ ${permissionInfo}
       model: 'claude-opus-4-6',
       max_tokens: 4000,
       system: this.getCoordinatorSystemPrompt(),
-      messages: this.conversationHistory.map(msg => ({
-        role: msg.role,
-        content: this.extractContentFromMessage(msg),
-      })).concat([
+      messages: this.conversationHistory.concat([
         {
           role: 'user',
           content: decisionPrompt,
@@ -314,7 +314,7 @@ ${taskDescription}
       this.conversationHistory.push({
         role: 'assistant',
         content: `[${role.name} 执行结果]: ${subagentResult}`,
-      } as any);
+      });
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '未知错误';
@@ -326,14 +326,14 @@ ${taskDescription}
   private extractLastTextContent(): string {
     const lastMessage = this.conversationHistory[this.conversationHistory.length - 1];
     if (!lastMessage) return '';
-    return this.extractContentFromMessage(lastMessage);
+    return lastMessage.content;
   }
 
-  // Helper: Extract content from message
-  private extractContentFromMessage(message: Anthropic.Message): string {
-    return message.content
+  // Helper: Extract content from response
+  private extractContentFromResponse(response: Anthropic.Message): string {
+    return response.content
       .filter(block => block.type === 'text')
-      .map(block => (block as any).text)
+      .map(block => (block as Anthropic.TextBlock).text)
       .join('\n');
   }
 
@@ -341,7 +341,7 @@ ${taskDescription}
   private extractTextFromResponse(response: Anthropic.Message): string {
     return response.content
       .filter(block => block.type === 'text')
-      .map(block => (block as any).text)
+      .map(block => (block as Anthropic.TextBlock).text)
       .join('\n');
   }
 
