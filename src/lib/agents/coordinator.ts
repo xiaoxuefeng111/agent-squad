@@ -28,7 +28,13 @@ export class CoordinatorAgent {
     this.taskId = taskId;
     this.task = task;
     this.template = getTemplateById(task.templateId);
-    this.client = new Anthropic();
+
+    // 支持自定义 Base URL（如阿里云百炼）
+    const baseURL = process.env.ANTHROPIC_BASE_URL || undefined;
+    this.client = new Anthropic({
+      baseURL,
+    });
+
     this.messageCallback = messageCallback;
     this.statusCallback = statusCallback;
     this.currentRoleIndex = 0;

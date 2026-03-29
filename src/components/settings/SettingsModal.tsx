@@ -7,11 +7,26 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+// 预设的 API 提供商
+const API_PROVIDERS = [
+  { id: 'anthropic', name: 'Anthropic (官方)', baseUrl: '', keyPrefix: 'sk-ant-' },
+  { id: 'aliyun', name: '阿里云百炼', baseUrl: 'https://coding.dashscope.aliyuncs.com/apps/anthropic', keyPrefix: 'sk-' },
+  { id: 'custom', name: '自定义', baseUrl: '', keyPrefix: '' },
+];
+
+type ConnectionStatus = 'unknown' | 'testing' | 'connected' | 'failed';
+
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
   const [hasApiKey, setHasApiKey] = useState(false);
   const [apiKeyPreview, setApiKeyPreview] = useState<string | null>(null);
+  const [currentBaseUrl, setCurrentBaseUrl] = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState('anthropic');
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('unknown');
+  const [connectionMessage, setConnectionMessage] = useState('');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -26,8 +41,72 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const data = await response.json();
       setHasApiKey(data.hasApiKey);
       setApiKeyPreview(data.apiKeyPreview);
+      setCurrentBaseUrl(data.baseUrl);
+
+      // 根据当前 baseUrl 设置提供商
+      if (data.baseUrl) {
+        if (data.baseUrl.includes('dashscope.aliyuncs.com')) {
+          setSelectedProvider('aliyun');
+          setBaseUrl(data.baseUrl);
+        } else {
+          setSelectedProvider('custom');
+          setBaseUrl(data.baseUrl);
+        }
+      } else {
+        setSelectedProvider('anthropic');
+        setBaseUrl('');
+      }
+
+      // 如果有配置，自动测试连接
+      if (data.hasApiKey) {
+        testConnection(data.hasApiKey ? 'saved' : 'new');
+      }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
+    }
+  };
+
+  const handleProviderChange = (providerId: string) => {
+    setSelectedProvider(providerId);
+    setConnectionStatus('unknown');
+    const provider = API_PROVIDERS.find(p => p.id === providerId);
+    if (provider && provider.baseUrl) {
+      setBaseUrl(provider.baseUrl);
+    } else if (providerId === 'anthropic') {
+      setBaseUrl('');
+    }
+  };
+
+  const testConnection = async (type: 'saved' | 'new' = 'new') => {
+    setTesting(true);
+    setConnectionStatus('testing');
+    setConnectionMessage('');
+
+    try {
+      const body = type === 'saved' && hasApiKey
+        ? {} // 使用已保存的配置
+        : { apiKey, baseUrl: baseUrl || undefined };
+
+      const response = await fetch('/api/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setConnectionStatus('connected');
+        setConnectionMessage(data.message);
+      } else {
+        setConnectionStatus('failed');
+        setConnectionMessage(data.error);
+      }
+    } catch (error) {
+      setConnectionStatus('failed');
+      setConnectionMessage('测试失败');
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -44,19 +123,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey }),
+        body: JSON.stringify({ apiKey, baseUrl: baseUrl || undefined }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setMessage('API Key 已保存!');
+        setMessage('设置已保存!');
         setHasApiKey(true);
         setApiKeyPreview(data.apiKeyPreview);
+        setCurrentBaseUrl(data.baseUrl);
         setApiKey('');
-        setTimeout(() => {
-          onClose();
-        }, 1500);
+        // 保存后测试连接
+        testConnection('saved');
       } else {
         setMessage(data.error || '保存失败');
       }
@@ -69,18 +148,46 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   if (!isOpen) return null;
 
+  const selectedProviderInfo = API_PROVIDERS.find(p => p.id === selectedProvider);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold text-white mb-4">系统设置</h2>
+
+        {/* API 提供商选择 */}
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2">API 提供商</label>
+          <div className="grid grid-cols-3 gap-2">
+            {API_PROVIDERS.map((provider) => (
+              <button
+                key={provider.id}
+                type="button"
+                onClick={() => handleProviderChange(provider.id)}
+                className={`px-3 py-2 rounded-md text-sm transition-colors ${
+                  selectedProvider === provider.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                {provider.name}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* API Key 状态 */}
         <div className="mb-4">
-          <label className="block text-gray-300 mb-2">Claude API Key</label>
+          <label className="block text-gray-300 mb-2">API Key</label>
           {hasApiKey && apiKeyPreview && (
             <div className="bg-gray-700 rounded-md px-3 py-2 mb-3">
               <span className="text-green-400">✓ 已设置: </span>
               <span className="text-gray-300">{apiKeyPreview}</span>
+              {currentBaseUrl && (
+                <div className="text-gray-400 text-xs mt-1">
+                  Base URL: {currentBaseUrl}
+                </div>
+              )}
             </div>
           )}
           {!hasApiKey && (
@@ -96,25 +203,109 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           <input
             type="password"
             value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
+            onChange={(e) => {
+              setApiKey(e.target.value);
+              setConnectionStatus('unknown');
+            }}
             className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-            placeholder="sk-ant-..."
+            placeholder={selectedProviderInfo?.keyPrefix ? `${selectedProviderInfo.keyPrefix}...` : '输入 API Key'}
           />
-          <p className="text-gray-400 text-xs mt-2">
-            API Key 将保存到本地 .env.local 文件
-          </p>
         </div>
 
-        {/* 获取 API Key 链接 */}
+        {/* Base URL 输入 */}
+        {selectedProvider !== 'anthropic' && (
+          <div className="mb-4">
+            <label className="block text-gray-300 mb-2">Base URL</label>
+            <input
+              type="text"
+              value={baseUrl}
+              onChange={(e) => {
+                setBaseUrl(e.target.value);
+                setConnectionStatus('unknown');
+              }}
+              className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              placeholder="https://api.example.com"
+            />
+            <p className="text-gray-400 text-xs mt-2">
+              {selectedProvider === 'aliyun' && '阿里云百炼兼容 Anthropic 协议的 Base URL'}
+              {selectedProvider === 'custom' && '输入自定义 API 提供商的 Base URL'}
+            </p>
+          </div>
+        )}
+
+        {/* 连接状态 */}
         <div className="mb-4">
-          <a
-            href="https://console.anthropic.com/settings/keys"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-400 hover:text-blue-300 text-sm"
-          >
-            → 点击获取 Claude API Key
-          </a>
+          <div className="flex items-center justify-between">
+            <label className="text-gray-300">连接状态</label>
+            <button
+              type="button"
+              onClick={() => testConnection(apiKey ? 'new' : 'saved')}
+              disabled={testing || (!apiKey && !hasApiKey)}
+              className="px-3 py-1 bg-gray-700 text-gray-300 rounded-md text-sm hover:bg-gray-600 transition-colors disabled:opacity-50"
+            >
+              {testing ? '测试中...' : '测试连接'}
+            </button>
+          </div>
+          <div className="mt-2 rounded-md px-3 py-2 flex items-center space-x-2">
+            {connectionStatus === 'unknown' && (
+              <>
+                <span className="w-3 h-3 rounded-full bg-gray-500"></span>
+                <span className="text-gray-400">未测试</span>
+              </>
+            )}
+            {connectionStatus === 'testing' && (
+              <>
+                <span className="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span>
+                <span className="text-blue-400">正在测试...</span>
+              </>
+            )}
+            {connectionStatus === 'connected' && (
+              <>
+                <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                <span className="text-green-400">连接成功 ✓</span>
+              </>
+            )}
+            {connectionStatus === 'failed' && (
+              <>
+                <span className="w-3 h-3 rounded-full bg-red-500"></span>
+                <span className="text-red-400">连接失败 ✗</span>
+              </>
+            )}
+          </div>
+          {connectionMessage && (
+            <p className={`text-sm mt-1 ${
+              connectionStatus === 'connected' ? 'text-green-400' : 'text-red-400'
+            }`}>
+              {connectionMessage}
+            </p>
+          )}
+        </div>
+
+        {/* 提示信息 */}
+        <div className="mb-4 bg-gray-700 rounded-md p-3">
+          <p className="text-gray-300 text-sm">
+            {selectedProvider === 'anthropic' && (
+              <>
+                官方 API，需从{' '}
+                <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                  console.anthropic.com
+                </a>
+                {' '}获取 API Key
+              </>
+            )}
+            {selectedProvider === 'aliyun' && (
+              <>
+                阿里云百炼 API，需从{' '}
+                <a href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                  阿里云百炼控制台
+                </a>
+                {' '}获取 API Key
+              </>
+            )}
+            {selectedProvider === 'custom' && (
+              <>使用自定义 API 提供商，请确保兼容 Anthropic 协议</>
+            )}
+          </p>
         </div>
 
         {/* 消息提示 */}
