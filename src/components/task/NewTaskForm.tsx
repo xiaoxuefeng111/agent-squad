@@ -1,5 +1,12 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { ScenarioTemplate, PermissionMode } from '@/types';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
 interface NewTaskFormProps {
   isOpen: boolean;
@@ -22,10 +29,17 @@ export function NewTaskForm({ isOpen, onClose, onSubmit }: NewTaskFormProps) {
   const [templates, setTemplates] = useState<ScenarioTemplate[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Fetch templates on mount
+  const [showBrainstorm, setShowBrainstorm] = useState(false);
+  const [brainstormMessages, setBrainstormMessages] = useState<Message[]>([]);
+  const [userInput, setUserInput] = useState('');
+  const [brainstormLoading, setBrainstormLoading] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       fetchTemplates();
+      setShowBrainstorm(false);
+      setBrainstormMessages([]);
+      setUserInput('');
     }
   }, [isOpen]);
 
@@ -42,21 +56,81 @@ export function NewTaskForm({ isOpen, onClose, onSubmit }: NewTaskFormProps) {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleStartBrainstorm = async () => {
     if (!title || !templateId) return;
 
-    setLoading(true);
+    setBrainstormLoading(true);
+    setShowBrainstorm(true);
+
     try {
-      onSubmit({
-        title,
-        description,
-        templateId,
-        permissionMode,
-        workspacePath,
+      const response = await fetch('/api/brainstorm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, templateId }),
       });
 
-      // Reset form
+      const data = await response.json();
+
+      if (data.success) {
+        setBrainstormMessages([{ role: 'assistant', content: data.message }]);
+      } else {
+        setBrainstormMessages([{ role: 'assistant', content: `Error: ${data.error}` }]);
+      }
+    } catch (error) {
+      setBrainstormMessages([{ role: 'assistant', content: 'Failed to analyze' }]);
+    } finally {
+      setBrainstormLoading(false);
+    }
+  };
+
+  const handleSendUserMessage = async () => {
+    if (!userInput.trim() || brainstormLoading) return;
+
+    const newUserMessage: Message = { role: 'user', content: userInput };
+    const newMessages = [...brainstormMessages, newUserMessage];
+    setBrainstormMessages(newMessages);
+    setUserInput('');
+    setBrainstormLoading(true);
+
+    try {
+      const response = await fetch('/api/brainstorm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, templateId, messages: newMessages }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setBrainstormMessages([...newMessages, { role: 'assistant', content: data.message }]);
+      } else {
+        setBrainstormMessages([...newMessages, { role: 'assistant', content: `Error: ${data.error}` }]);
+      }
+    } catch (error) {
+      setBrainstormMessages([...newMessages, { role: 'assistant', content: 'Failed to send' }]);
+    } finally {
+      setBrainstormLoading(false);
+    }
+  };
+
+  const handleConfirm = () => {
+    setLoading(true);
+    try {
+      onSubmit({ title, description, templateId, permissionMode, workspacePath });
+      setTitle('');
+      setDescription('');
+      setShowBrainstorm(false);
+      setBrainstormMessages([]);
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSkip = () => {
+    setLoading(true);
+    try {
+      onSubmit({ title, description, templateId, permissionMode, workspacePath });
       setTitle('');
       setDescription('');
       onClose();
@@ -69,54 +143,48 @@ export function NewTaskForm({ isOpen, onClose, onSubmit }: NewTaskFormProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
-        <h2 className="text-xl font-bold text-white mb-4">创建新任务</h2>
+      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-xl font-bold text-white mb-4">Create New Task</h2>
 
-        <form onSubmit={handleSubmit}>
-          {/* Task Title */}
-          <div className="mb-4">
-            <label className="block text-gray-300 mb-2">任务标题 *</label>
+        <div className="space-y-4 mb-4">
+          <div>
+            <label className="block text-gray-300 mb-2">Title *</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-              placeholder="输入任务标题"
+              placeholder="Task title"
               required
             />
           </div>
 
-          {/* Task Description */}
-          <div className="mb-4">
-            <label className="block text-gray-300 mb-2">任务描述</label>
+          <div>
+            <label className="block text-gray-300 mb-2">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500 h-20"
-              placeholder="详细描述任务需求"
+              placeholder="Describe your task"
             />
           </div>
 
-          {/* Template Selection */}
-          <div className="mb-4">
-            <label className="block text-gray-300 mb-2">场景模板 *</label>
+          <div>
+            <label className="block text-gray-300 mb-2">Template *</label>
             <select
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
               className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500"
               required
             >
-              {templates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name} - {template.description}
-                </option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} - {t.description}</option>
               ))}
             </select>
           </div>
 
-          {/* Permission Mode */}
-          <div className="mb-4">
-            <label className="block text-gray-300 mb-2">权限模式</label>
+          <div>
+            <label className="block text-gray-300 mb-2">Permission</label>
             <div className="grid grid-cols-3 gap-2">
               {(['strict', 'standard', 'trusted'] as PermissionMode[]).map((mode) => (
                 <button
@@ -124,54 +192,112 @@ export function NewTaskForm({ isOpen, onClose, onSubmit }: NewTaskFormProps) {
                   type="button"
                   onClick={() => setPermissionMode(mode)}
                   className={`px-3 py-2 rounded-md text-sm transition-colors ${
-                    permissionMode === mode
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    permissionMode === mode ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   }`}
                 >
-                  {mode === 'strict' && '严格'}
-                  {mode === 'standard' && '标准'}
-                  {mode === 'trusted' && '信任'}
+                  {mode === 'strict' ? 'Strict' : mode === 'standard' ? 'Standard' : 'Trusted'}
                 </button>
               ))}
             </div>
-            <p className="text-gray-400 text-xs mt-2">
-              {permissionMode === 'strict' && '严格模式：所有操作需确认，只能读取文件'}
-              {permissionMode === 'standard' && '标准模式：常规操作自主执行，敏感操作需确认'}
-              {permissionMode === 'trusted' && '信任模式：全自主执行，无需确认'}
-            </p>
           </div>
 
-          {/* Workspace Path */}
-          <div className="mb-6">
-            <label className="block text-gray-300 mb-2">工作目录</label>
+          <div>
+            <label className="block text-gray-300 mb-2">Workspace</label>
             <input
               type="text"
               value={workspacePath}
               onChange={(e) => setWorkspacePath(e.target.value)}
               className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-              placeholder="工作目录路径"
             />
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex justify-end space-x-3">
+        {!showBrainstorm && (
+          <div className="flex gap-3 mb-4">
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors"
+              onClick={handleStartBrainstorm}
+              disabled={!title || !templateId || brainstormLoading}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
             >
-              取消
+              {brainstormLoading ? 'Analyzing...' : '🧠 Analyze Task (Recommended)'}
             </button>
             <button
-              type="submit"
-              disabled={loading || !title || !templateId}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              type="button"
+              onClick={handleSkip}
+              disabled={!title || !templateId || loading}
+              className="flex-1 bg-gray-600 hover:bg-gray-500 text-white px-4 py-3 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
             >
-              {loading ? '创建中...' : '创建任务'}
+              Skip & Create
             </button>
           </div>
-        </form>
+        )}
+
+        {showBrainstorm && (
+          <div className="border border-gray-600 rounded-md mb-4">
+            <div className="bg-gray-700 px-3 py-2 border-b border-gray-600 flex justify-between items-center">
+              <span className="text-white font-medium">Task Analysis</span>
+              <button type="button" onClick={() => setShowBrainstorm(false)} className="text-gray-400 hover:text-white text-sm">Close</button>
+            </div>
+
+            <div className="p-3 h-64 overflow-y-auto space-y-3">
+              {brainstormMessages.map((msg, idx) => (
+                <div key={idx} className={msg.role === 'user' ? 'text-right' : 'text-left'}>
+                  <div className={`inline-block max-w-[80%] px-3 py-2 rounded-lg text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-100'}`}>
+                    <pre className="whitespace-pre-wrap font-sans">{msg.content}</pre>
+                  </div>
+                </div>
+              ))}
+              {brainstormLoading && (
+                <div className="text-left">
+                  <div className="inline-block px-3 py-2 rounded-lg text-sm bg-gray-600 text-gray-300">Thinking...</div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 border-t border-gray-600">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendUserMessage()}
+                  placeholder="Reply or type 'confirm' to start..."
+                  className="flex-1 bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  disabled={brainstormLoading}
+                />
+                <button
+                  type="button"
+                  onClick={handleSendUserMessage}
+                  disabled={!userInput.trim() || brainstormLoading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm transition-colors disabled:opacity-50"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showBrainstorm && brainstormMessages.length > 0 && (
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={loading}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              ✓ Confirm & Start
+            </button>
+            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors">Cancel</button>
+          </div>
+        )}
+
+        {!showBrainstorm && (
+          <div className="flex justify-end">
+            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors">Cancel</button>
+          </div>
+        )}
       </div>
     </div>
   );
