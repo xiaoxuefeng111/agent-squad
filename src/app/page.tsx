@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout';
 import { NewTaskForm, TaskDetail } from '@/components/task';
 import { ChatPanel } from '@/components/chat';
+import { SettingsModal } from '@/components/settings';
 import { useWebSocket } from '@/lib/websocket/hooks';
 import { Task, ScenarioTemplate, ChatMessage, PermissionMode } from '@/types';
 
@@ -13,6 +14,8 @@ export default function HomePage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [template, setTemplate] = useState<ScenarioTemplate | null>(null);
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,9 +23,10 @@ export default function HomePage() {
   // WebSocket connection
   const { isConnected, lastMessage } = useWebSocket();
 
-  // Fetch tasks on mount
+  // Fetch tasks and settings on mount
   useEffect(() => {
     fetchTasks();
+    fetchSettings();
   }, []);
 
   // Fetch selected task details when selection changes
@@ -46,6 +50,16 @@ export default function HomePage() {
       }
     }
   }, [lastMessage, selectedTaskId]);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await fetch('/api/settings');
+      const data = await response.json();
+      setHasApiKey(data.hasApiKey);
+    } catch (error) {
+      console.error('Failed to fetch settings:', error);
+    }
+  };
 
   const fetchTasks = async () => {
     try {
@@ -180,12 +194,19 @@ export default function HomePage() {
     }
   };
 
+  const handleSettingsClose = () => {
+    setIsSettingsOpen(false);
+    fetchSettings(); // Refresh settings after closing
+  };
+
   return (
     <MainLayout
       tasks={tasks}
       selectedTaskId={selectedTaskId}
       onSelectTask={setSelectedTaskId}
       onNewTask={() => setIsNewTaskOpen(true)}
+      onSettings={() => setIsSettingsOpen(true)}
+      hasApiKey={hasApiKey}
     >
       <div className="h-full flex">
         <div className="w-1/2 border-r border-gray-700 overflow-y-auto">
@@ -207,6 +228,10 @@ export default function HomePage() {
         isOpen={isNewTaskOpen}
         onClose={() => setIsNewTaskOpen(false)}
         onSubmit={handleCreateTask}
+      />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={handleSettingsClose}
       />
     </MainLayout>
   );

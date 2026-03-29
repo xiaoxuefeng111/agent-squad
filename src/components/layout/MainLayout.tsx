@@ -9,6 +9,8 @@ interface MainLayoutProps {
   selectedTaskId: string | null;
   onSelectTask: (taskId: string) => void;
   onNewTask: () => void;
+  onSettings: () => void;
+  hasApiKey?: boolean;
 }
 
 export function MainLayout({
@@ -17,10 +19,12 @@ export function MainLayout({
   selectedTaskId,
   onSelectTask,
   onNewTask,
+  onSettings,
+  hasApiKey,
 }: MainLayoutProps) {
   return (
     <div className="h-screen flex flex-col bg-gray-950">
-      <Header onNewTask={onNewTask} />
+      <Header onNewTask={onNewTask} onSettings={onSettings} hasApiKey={hasApiKey} />
       <div className="flex-1 flex overflow-hidden">
         <Sidebar
           tasks={tasks}
