@@ -9,9 +9,9 @@ interface SettingsModalProps {
 
 // 预设的 API 提供商
 const API_PROVIDERS = [
-  { id: 'anthropic', name: 'Anthropic (官方)', baseUrl: '', keyPrefix: 'sk-ant-' },
-  { id: 'aliyun', name: '阿里云百炼', baseUrl: 'https://coding.dashscope.aliyuncs.com/apps/anthropic', keyPrefix: 'sk-' },
-  { id: 'custom', name: '自定义', baseUrl: '', keyPrefix: '' },
+  { id: 'anthropic', name: 'Anthropic (官方)', baseUrl: '', defaultModel: 'claude-3-5-haiku-20241022', keyPrefix: 'sk-ant-' },
+  { id: 'aliyun', name: '阿里云百炼', baseUrl: 'https://coding.dashscope.aliyuncs.com/apps/anthropic', defaultModel: 'qwen-plus', keyPrefix: 'sk-' },
+  { id: 'custom', name: '自定义', baseUrl: '', defaultModel: '', keyPrefix: '' },
 ];
 
 type ConnectionStatus = 'unknown' | 'testing' | 'connected' | 'failed';
@@ -19,9 +19,11 @@ type ConnectionStatus = 'unknown' | 'testing' | 'connected' | 'failed';
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
+  const [model, setModel] = useState('');
   const [hasApiKey, setHasApiKey] = useState(false);
   const [apiKeyPreview, setApiKeyPreview] = useState<string | null>(null);
   const [currentBaseUrl, setCurrentBaseUrl] = useState<string | null>(null);
+  const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState('anthropic');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -42,6 +44,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setHasApiKey(data.hasApiKey);
       setApiKeyPreview(data.apiKeyPreview);
       setCurrentBaseUrl(data.baseUrl);
+      setCurrentModel(data.model);
+      setModel(data.model || '');
 
       // 根据当前 baseUrl 设置提供商
       if (data.baseUrl) {
@@ -59,7 +63,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
       // 如果有配置，自动测试连接
       if (data.hasApiKey) {
-        testConnection(data.hasApiKey ? 'saved' : 'new');
+        testConnection('saved', data.model);
       }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
@@ -70,22 +74,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setSelectedProvider(providerId);
     setConnectionStatus('unknown');
     const provider = API_PROVIDERS.find(p => p.id === providerId);
-    if (provider && provider.baseUrl) {
-      setBaseUrl(provider.baseUrl);
-    } else if (providerId === 'anthropic') {
-      setBaseUrl('');
+    if (provider) {
+      if (provider.baseUrl) {
+        setBaseUrl(provider.baseUrl);
+      } else {
+        setBaseUrl('');
+      }
+      if (provider.defaultModel) {
+        setModel(provider.defaultModel);
+      }
     }
   };
 
-  const testConnection = async (type: 'saved' | 'new' = 'new') => {
+  const testConnection = async (type: 'saved' | 'new' = 'new', testModel?: string) => {
     setTesting(true);
     setConnectionStatus('testing');
     setConnectionMessage('');
 
     try {
       const body = type === 'saved' && hasApiKey
-        ? {} // 使用已保存的配置
-        : { apiKey, baseUrl: baseUrl || undefined };
+        ? { model: testModel }
+        : { apiKey, baseUrl: baseUrl || undefined, model: model || undefined };
 
       const response = await fetch('/api/test-connection', {
         method: 'POST',
@@ -123,7 +132,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey, baseUrl: baseUrl || undefined }),
+        body: JSON.stringify({ apiKey, baseUrl: baseUrl || undefined, model: model || undefined }),
       });
 
       const data = await response.json();
@@ -133,9 +142,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setHasApiKey(true);
         setApiKeyPreview(data.apiKeyPreview);
         setCurrentBaseUrl(data.baseUrl);
+        setCurrentModel(data.model);
         setApiKey('');
         // 保存后测试连接
-        testConnection('saved');
+        testConnection('saved', data.model);
       } else {
         setMessage(data.error || '保存失败');
       }
@@ -188,6 +198,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   Base URL: {currentBaseUrl}
                 </div>
               )}
+              {currentModel && (
+                <div className="text-gray-400 text-xs">
+                  模型: {currentModel}
+                </div>
+              )}
             </div>
           )}
           {!hasApiKey && (
@@ -226,12 +241,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500"
               placeholder="https://api.example.com"
             />
-            <p className="text-gray-400 text-xs mt-2">
-              {selectedProvider === 'aliyun' && '阿里云百炼兼容 Anthropic 协议的 Base URL'}
-              {selectedProvider === 'custom' && '输入自定义 API 提供商的 Base URL'}
-            </p>
           </div>
         )}
+
+        {/* 模型输入 */}
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2">模型名称</label>
+          <input
+            type="text"
+            value={model}
+            onChange={(e) => {
+              setModel(e.target.value);
+              setConnectionStatus('unknown');
+            }}
+            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+            placeholder={selectedProviderInfo?.defaultModel || '输入模型名称'}
+          />
+          <p className="text-gray-400 text-xs mt-2">
+            {selectedProvider === 'aliyun' && '阿里云百炼模型: qwen-plus, qwen-turbo, qwen-max 等'}
+            {selectedProvider === 'anthropic' && 'Claude 模型: claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022 等'}
+            {selectedProvider === 'custom' && '请输入您的 API 提供商支持的模型名称'}
+          </p>
+        </div>
 
         {/* 连接状态 */}
         <div className="mb-4">

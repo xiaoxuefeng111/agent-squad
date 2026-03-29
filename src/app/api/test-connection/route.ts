@@ -4,11 +4,18 @@ import path from 'path';
 
 const ENV_PATH = path.join(process.cwd(), '.env.local');
 
+// 默认模型
+const DEFAULT_MODELS: Record<string, string> = {
+  'anthropic': 'claude-3-5-haiku-20241022',
+  'aliyun': 'qwen-plus',
+  'custom': 'claude-3-5-haiku-20241022',
+};
+
 // POST /api/test-connection - 测试 API 连接
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    let { apiKey, baseUrl } = body;
+    let { apiKey, baseUrl, model } = body;
 
     // 如果没有传入 apiKey，从保存的配置中读取
     if (!apiKey && fs.existsSync(ENV_PATH)) {
@@ -21,6 +28,10 @@ export async function POST(request: NextRequest) {
       if (urlMatch) {
         baseUrl = urlMatch[1].trim();
       }
+      const modelMatch = content.match(/ANTHROPIC_MODEL=(.+)/);
+      if (modelMatch) {
+        model = modelMatch[1].trim();
+      }
     }
 
     if (!apiKey) {
@@ -30,12 +41,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 确定使用哪个模型
+    let testModel = model;
+    if (!testModel) {
+      // 根据 baseUrl 判断提供商
+      if (baseUrl && baseUrl.includes('dashscope')) {
+        testModel = DEFAULT_MODELS['aliyun'];
+      } else if (baseUrl) {
+        testModel = DEFAULT_MODELS['custom'];
+      } else {
+        testModel = DEFAULT_MODELS['anthropic'];
+      }
+    }
+
     // 构建 API URL
     const apiUrl = baseUrl
       ? `${baseUrl}/v1/messages`
       : 'https://api.anthropic.com/v1/messages';
 
-    console.log('Testing connection to:', apiUrl);
+    console.log('Testing connection to:', apiUrl, 'with model:', testModel);
 
     // 发送测试请求
     const response = await fetch(apiUrl, {
@@ -46,7 +70,7 @@ export async function POST(request: NextRequest) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-3-5-haiku-20241022',
+        model: testModel,
         max_tokens: 10,
         messages: [{ role: 'user', content: 'Hi' }],
       }),
@@ -55,7 +79,7 @@ export async function POST(request: NextRequest) {
     if (response.ok) {
       return NextResponse.json({
         success: true,
-        message: '连接成功！API Key 有效',
+        message: `连接成功！模型: ${testModel}`,
       });
     } else {
       const errorData = await response.json().catch(() => ({}));

@@ -7,12 +7,16 @@ import { getTemplateById } from '@/lib/storage/config';
 export type MessageCallback = (message: ChatMessage) => void;
 export type StatusCallback = (taskId: string, status: Task['status']) => void;
 
+// 默认模型配置
+const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
+
 // Coordinator Agent class
 export class CoordinatorAgent {
   private taskId: string;
   private task: Task;
   private template: ScenarioTemplate | null;
   private client: Anthropic;
+  private model: string;
   private messageCallback: MessageCallback;
   private statusCallback: StatusCallback;
   private currentRoleIndex: number;
@@ -34,6 +38,9 @@ export class CoordinatorAgent {
     this.client = new Anthropic({
       baseURL,
     });
+
+    // 使用配置的模型
+    this.model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 
     this.messageCallback = messageCallback;
     this.statusCallback = statusCallback;
@@ -147,7 +154,7 @@ ${permissionInfo}
 
       // Create initial message to Claude
       const response = await this.client.messages.create({
-        model: 'claude-opus-4-6',
+        model: this.model,
         max_tokens: 16000,
         system: this.getCoordinatorSystemPrompt(),
         messages: [

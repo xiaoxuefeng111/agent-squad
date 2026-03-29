@@ -9,6 +9,7 @@ export async function GET() {
   try {
     let apiKey = '';
     let baseUrl = '';
+    let model = '';
 
     if (fs.existsSync(ENV_PATH)) {
       const content = fs.readFileSync(ENV_PATH, 'utf-8');
@@ -20,12 +21,17 @@ export async function GET() {
       if (urlMatch) {
         baseUrl = urlMatch[1].trim();
       }
+      const modelMatch = content.match(/ANTHROPIC_MODEL=(.+)/);
+      if (modelMatch) {
+        model = modelMatch[1].trim();
+      }
     }
 
     return NextResponse.json({
       hasApiKey: apiKey.length > 0,
       apiKeyPreview: apiKey ? `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}` : null,
       baseUrl: baseUrl || null,
+      model: model || null,
     });
   } catch (error) {
     return NextResponse.json(
@@ -39,7 +45,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { apiKey, baseUrl } = body;
+    const { apiKey, baseUrl, model } = body;
 
     if (!apiKey) {
       return NextResponse.json(
@@ -53,6 +59,9 @@ export async function POST(request: NextRequest) {
     if (baseUrl) {
       content += `ANTHROPIC_BASE_URL=${baseUrl}\n`;
     }
+    if (model) {
+      content += `ANTHROPIC_MODEL=${model}\n`;
+    }
     fs.writeFileSync(ENV_PATH, content);
 
     return NextResponse.json({
@@ -60,6 +69,7 @@ export async function POST(request: NextRequest) {
       message: '设置已保存',
       apiKeyPreview: `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`,
       baseUrl: baseUrl || null,
+      model: model || null,
     });
   } catch (error) {
     return NextResponse.json(
