@@ -5,6 +5,7 @@ import { MainLayout } from '@/components/layout';
 import { NewTaskForm, TaskDetail } from '@/components/task';
 import { ChatPanel } from '@/components/chat';
 import { SettingsModal } from '@/components/settings';
+import { SkillManager } from '@/components/skills';
 import { useWebSocket } from '@/lib/websocket/hooks';
 import { Task, ScenarioTemplate, ChatMessage, PermissionMode } from '@/types';
 
@@ -15,15 +16,15 @@ export default function HomePage() {
   const [template, setTemplate] = useState<ScenarioTemplate | null>(null);
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSkillsOpen, setIsSkillsOpen] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [isApiConnected, setIsApiConnected] = useState(false);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [currentProvider, setCurrentProvider] = useState<string>('');
   const [isRunning, setIsRunning] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // WebSocket connection
   const { isConnected, lastMessage } = useWebSocket();
 
   // Fetch tasks and settings on mount
@@ -241,6 +242,7 @@ export default function HomePage() {
       onSelectTask={setSelectedTaskId}
       onNewTask={() => setIsNewTaskOpen(true)}
       onSettings={() => setIsSettingsOpen(true)}
+      onSkills={() => setIsSkillsOpen(true)}
       hasApiKey={hasApiKey}
       isConnected={isApiConnected}
       model={currentModel}
@@ -270,6 +272,10 @@ export default function HomePage() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={handleSettingsClose}
+      />
+      <SkillManager
+        isOpen={isSkillsOpen}
+        onClose={() => setIsSkillsOpen(false)}
       />
     </MainLayout>
   );

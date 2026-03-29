@@ -10,6 +10,7 @@ interface MainLayoutProps {
   onSelectTask: (taskId: string) => void;
   onNewTask: () => void;
   onSettings: () => void;
+  onSkills: () => void;
   hasApiKey?: boolean;
   isConnected?: boolean;
   model?: string | null;
@@ -23,6 +24,7 @@ export function MainLayout({
   onSelectTask,
   onNewTask,
   onSettings,
+  onSkills,
   hasApiKey,
   isConnected,
   model,
@@ -33,6 +35,7 @@ export function MainLayout({
       <Header
         onNewTask={onNewTask}
         onSettings={onSettings}
+        onSkills={onSkills}
         hasApiKey={hasApiKey}
         isConnected={isConnected}
         model={model}
