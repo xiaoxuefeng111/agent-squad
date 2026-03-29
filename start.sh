@@ -1,34 +1,81 @@
 #!/bin/bash
 
-# 龙虾军团启动脚本
+echo "========================================"
+echo "  Agent Squad Startup Script"
+echo "========================================"
+echo
 
-echo "正在启动龙虾军团..."
+# Check Node.js
+echo "[1/4] Checking Node.js..."
+if ! command -v node &> /dev/null; then
+    echo "[ERROR] Node.js not found!"
+    echo "Please install Node.js from: https://nodejs.org/"
+    exit 1
+fi
+NODE_VER=$(node -v)
+echo "       Node.js: $NODE_VER [OK]"
 
-# 检查 .env.local 是否存在
-if [ ! -f ".env.local" ]; then
-    echo "警告: .env.local 文件不存在"
-    echo "请创建 .env.local 并设置 ANTHROPIC_API_KEY"
-    echo "示例: echo 'ANTHROPIC_API_KEY=your_key' > .env.local"
+# Check npm
+echo "[2/4] Checking npm..."
+if ! command -v npm &> /dev/null; then
+    echo "[ERROR] npm not found!"
+    echo "Please install Node.js from: https://nodejs.org/"
+    exit 1
+fi
+NPM_VER=$(npm -v)
+echo "       npm: $NPM_VER [OK]"
+
+# Check node_modules
+echo "[3/4] Checking dependencies..."
+if [ ! -d "node_modules" ]; then
+    echo "       node_modules not found, installing..."
+    npm install
+    if [ $? -ne 0 ]; then
+        echo "[ERROR] Failed to install dependencies!"
+        exit 1
+    fi
+    echo "       Dependencies installed [OK]"
+else
+    echo "       Dependencies [OK]"
 fi
 
-# 启动 Next.js 开发服务器
-echo "启动 Next.js 服务器 (端口 3000)..."
-npm run dev &
+# Check .env.local
+echo "[4/4] Checking API Key..."
+if [ ! -f ".env.local" ]; then
+    echo
+    echo "========================================"
+    echo "  [WARNING] API Key not configured!"
+    echo "========================================"
+    echo
+    echo "Please set your Claude API Key:"
+    echo "  1. Open the Web UI: http://localhost:3000"
+    echo "  2. Click 'Settings' button"
+    echo "  3. Enter your API Key"
+    echo
+    echo "Or create .env.local file manually:"
+    echo "  echo 'ANTHROPIC_API_KEY=sk-ant-xxx' > .env.local"
+    echo
+    echo "Get API Key from: https://console.anthropic.com/settings/keys"
+    echo "========================================"
+    echo
+    read -p "Continue anyway? (y/N): " CONTINUE
+    if [[ ! "$CONTINUE" =~ ^[Yy]$ ]]; then
+        exit 0
+    fi
+else
+    echo "       API Key configured [OK]"
+fi
 
-# 等待服务启动
-sleep 3
-
-echo ""
+echo
 echo "========================================"
-echo "  龙虾军团已启动"
+echo "  Starting Server..."
 echo "========================================"
-echo ""
-echo "  Web界面: http://localhost:3000"
+echo
+echo "  Web UI: http://localhost:3000"
 echo "  WebSocket: ws://localhost:3001"
-echo ""
-echo "  按 Ctrl+C 停止所有服务"
+echo
+echo "  Press Ctrl+C to stop"
 echo "========================================"
-echo ""
+echo
 
-# 等待子进程
-wait
+npm run dev
