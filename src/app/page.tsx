@@ -1,11 +1,213 @@
-export default function Home() {
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { MainLayout } from '@/components/layout';
+import { NewTaskForm, TaskDetail } from '@/components/task';
+import { ChatPanel } from '@/components/chat';
+import { useWebSocket } from '@/lib/websocket/hooks';
+import { Task, ScenarioTemplate, ChatMessage, PermissionMode } from '@/types';
+
+export default function HomePage() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [template, setTemplate] = useState<ScenarioTemplate | null>(null);
+  const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // WebSocket connection
+  const { isConnected, lastMessage } = useWebSocket();
+
+  // Fetch tasks on mount
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  // Fetch selected task details when selection changes
+  useEffect(() => {
+    if (selectedTaskId) {
+      fetchTaskDetail(selectedTaskId);
+      fetchMessages(selectedTaskId);
+      checkRunningStatus(selectedTaskId);
+    }
+  }, [selectedTaskId]);
+
+  // Handle WebSocket messages
+  useEffect(() => {
+    if (lastMessage && selectedTaskId) {
+      if (lastMessage.type === 'chat_message' && lastMessage.data.taskId === selectedTaskId) {
+        setMessages((prev) => [...prev, lastMessage.data]);
+      }
+      if (lastMessage.type === 'task_status' && lastMessage.data.taskId === selectedTaskId) {
+        fetchTasks();
+        fetchTaskDetail(selectedTaskId);
+      }
+    }
+  }, [lastMessage, selectedTaskId]);
+
+  const fetchTasks = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/tasks');
+      const data = await response.json();
+      setTasks(data);
+    } catch (error) {
+      console.error('Failed to fetch tasks:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchTaskDetail = async (taskId: string) => {
+    try {
+      const response = await fetch(`/api/tasks?id=${taskId}`);
+      const task = await response.json();
+      setSelectedTask(task);
+
+      const templateResponse = await fetch(`/api/templates?id=${task.templateId}`);
+      const templateData = await templateResponse.json();
+      setTemplate(templateData);
+    } catch (error) {
+      console.error('Failed to fetch task detail:', error);
+    }
+  };
+
+  const fetchMessages = async (taskId: string) => {
+    try {
+      const response = await fetch(`/api/messages?taskId=${taskId}`);
+      const data = await response.json();
+      setMessages(data);
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    }
+  };
+
+  const checkRunningStatus = async (taskId: string) => {
+    try {
+      const response = await fetch(`/api/execute?taskId=${taskId}`);
+      const data = await response.json();
+      setIsRunning(data.isRunning);
+    } catch (error) {
+      console.error('Failed to check running status:', error);
+    }
+  };
+
+  const handleCreateTask = async (taskData: {
+    title: string;
+    description: string;
+    templateId: string;
+    permissionMode: PermissionMode;
+    workspacePath: string;
+  }) => {
+    try {
+      const response = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskData),
+      });
+      const newTask = await response.json();
+      setTasks((prev) => [newTask, ...prev]);
+      setSelectedTaskId(newTask.id);
+      setIsNewTaskOpen(false);
+    } catch (error) {
+      console.error('Failed to create task:', error);
+    }
+  };
+
+  const handleStartExecution = async () => {
+    if (!selectedTaskId) return;
+    try {
+      await fetch('/api/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: selectedTaskId, action: 'start' }),
+      });
+      setIsRunning(true);
+      fetchTasks();
+      fetchTaskDetail(selectedTaskId);
+    } catch (error) {
+      console.error('Failed to start execution:', error);
+    }
+  };
+
+  const handlePauseExecution = async () => {
+    if (!selectedTaskId) return;
+    try {
+      await fetch('/api/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: selectedTaskId, action: 'pause' }),
+      });
+      setIsRunning(false);
+      fetchTasks();
+      fetchTaskDetail(selectedTaskId);
+    } catch (error) {
+      console.error('Failed to pause execution:', error);
+    }
+  };
+
+  const handleResumeExecution = async () => {
+    if (!selectedTaskId) return;
+    try {
+      await fetch('/api/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: selectedTaskId, action: 'resume' }),
+      });
+      setIsRunning(true);
+      fetchTasks();
+      fetchTaskDetail(selectedTaskId);
+    } catch (error) {
+      console.error('Failed to resume execution:', error);
+    }
+  };
+
+  const handleStopExecution = async () => {
+    if (!selectedTaskId) return;
+    try {
+      await fetch('/api/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: selectedTaskId, action: 'stop' }),
+      });
+      setIsRunning(false);
+      fetchTasks();
+      fetchTaskDetail(selectedTaskId);
+    } catch (error) {
+      console.error('Failed to stop execution:', error);
+    }
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">🦐 龙虾军团</h1>
-        <p className="text-xl text-gray-600">多Agent协作系统</p>
-        <p className="mt-4 text-gray-500">正在初始化...</p>
+    <MainLayout
+      tasks={tasks}
+      selectedTaskId={selectedTaskId}
+      onSelectTask={setSelectedTaskId}
+      onNewTask={() => setIsNewTaskOpen(true)}
+    >
+      <div className="h-full flex">
+        <div className="w-1/2 border-r border-gray-700 overflow-y-auto">
+          <TaskDetail
+            task={selectedTask}
+            template={template}
+            onStart={handleStartExecution}
+            onPause={handlePauseExecution}
+            onResume={handleResumeExecution}
+            onStop={handleStopExecution}
+            isRunning={isRunning}
+          />
+        </div>
+        <div className="w-1/2">
+          <ChatPanel messages={messages} isConnected={isConnected} />
+        </div>
       </div>
-    </main>
-  )
+      <NewTaskForm
+        isOpen={isNewTaskOpen}
+        onClose={() => setIsNewTaskOpen(false)}
+        onSubmit={handleCreateTask}
+      />
+    </MainLayout>
+  );
 }
