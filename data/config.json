@@ -1,0 +1,10 @@
+{
+  "templates": [],
+  "customRoles": [],
+  "defaultPermissionMode": "standard",
+  "storageLimits": {
+    "maxConversationLogSize": 1073741824,
+    "maxTaskHistory": 1000,
+    "maxTotalStorage": 10737418240
+  }
+}
