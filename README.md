@@ -56,27 +56,138 @@
 
 ## 安装
 
-### 前置要求
+### 环境要求
 
-- Node.js 18+
-- npm 或 yarn
-- API Key (Anthropic 或 阿里云百炼)
+#### 必需环境
 
-### 安装步骤
+| 环境 | 版本要求 | 说明 |
+|-----|---------|------|
+| Node.js | 18+ | 运行环境，必需 |
+| npm | 9+ | 包管理器，必需 |
+| API Key | - | Claude/阿里云百炼 API密钥 |
 
-```bash
-# 克隆仓库
+#### 可选环境（数据库持久化）
+
+| 环境 | 说明 | Windows安装方式 |
+|-----|------|----------------|
+| Python 3.x | 编译原生模块 | [python.org](https://www.python.org/downloads/) 安装时勾选 "Add Python to PATH" |
+| VS Build Tools | C++编译器 | [VS Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 选择 "Desktop development with C++" |
+
+**注意**: 如果不安装 Python 和编译工具，应用会使用内存存储，数据在重启后丢失。
+
+### 快速安装
+
+#### Windows
+
+```batch
+# 1. 克隆仓库
 git clone https://github.com/yourusername/agent-squad.git
 cd agent-squad
 
-# 安装依赖
+# 2. 运行启动脚本（自动检测环境并安装）
+start.bat
+```
+
+首次运行 `start.bat` 会：
+- 检测 Node.js/npm 是否安装
+- 检测 Python 是否可用（可选）
+- 自动安装依赖（根据环境选择完整安装或备用安装）
+- 提示配置 API Key
+
+#### macOS / Linux
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/yourusername/agent-squad.git
+cd agent-squad
+
+# 2. 运行启动脚本
+chmod +x start.sh
+./start.sh
+```
+
+#### 手动安装选项
+
+```batch
+# 完整安装（需要 Python + 编译工具）
 npm install
 
-# 运行开发服务器
+# 备用安装（跳过原生编译，使用内存存储）
+npm install --ignore-scripts
+
+# 启动
 npm run dev
 ```
 
-首次运行后，在Web界面点击"设置"配置API Key。
+### Python 配置指南
+
+#### Windows
+
+1. 下载 Python: https://www.python.org/downloads/
+2. **重要**: 安装时勾选 **"Add Python to PATH"**
+3. 验证安装:
+   ```batch
+   python --version
+   # 应显示: Python 3.x.x
+   ```
+4. 安装 VS Build Tools:
+   - 下载: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+   - 选择 "Desktop development with C++"
+5. 重新编译原生模块:
+   ```batch
+   npm rebuild better-sqlite3
+   ```
+
+#### macOS
+
+```bash
+# 安装 Python (通常已预装)
+brew install python3
+
+# 安装编译工具
+xcode-select --install
+
+# 重新编译
+npm rebuild better-sqlite3
+```
+
+#### Linux (Ubuntu/Debian)
+
+```bash
+# 安装 Python 和编译工具
+sudo apt install python3 build-essential
+
+# 重新编译
+npm rebuild better-sqlite3
+```
+
+### 常见问题
+
+#### Python 未正确安装
+
+症状: `start.bat` 显示 "Python: NOT FOUND"
+解决:
+1. 确保安装时勾选了 "Add Python to PATH"
+2. 重新打开终端（CMD/PowerShell）
+3. 运行 `python --version` 验证
+
+#### npm install 失败
+
+症状: `gyp ERR! find Python` 或编译错误
+解决:
+```batch
+# 方案1: 安装 Python + VS Build Tools 后重新运行
+npm rebuild better-sqlite3
+
+# 方案2: 使用备用安装（数据不持久化）
+npm install --ignore-scripts
+```
+
+#### 数据丢失
+
+症状: 重启后任务历史消失
+原因: 未安装 Python，使用了内存存储
+解决: 安装 Python + VS Build Tools，运行 `npm rebuild better-sqlite3`
 
 ## 使用指南
 

@@ -101,9 +101,18 @@ export default function HomePage() {
       setIsLoading(true);
       const response = await fetch('/api/tasks');
       const data = await response.json();
-      setTasks(data);
+      // Handle error response from API
+      if (data && data.error) {
+        console.error('API error:', data.error);
+        setTasks([]);
+      } else if (Array.isArray(data)) {
+        setTasks(data);
+      } else {
+        setTasks([]);
+      }
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
+      setTasks([]);
     } finally {
       setIsLoading(false);
     }

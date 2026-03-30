@@ -159,72 +159,72 @@ What improvements should be made?`;
 function getSkillSystemPrompt(skillId: string | undefined): string {
   switch (skillId) {
     case 'brainstorming':
-      return `You are using the brainstorming skill to design a feature.
-Follow this process:
-1. Explore project context first (files, docs, recent commits)
-2. Ask clarifying questions one at a time
-3. Propose 2-3 approaches with trade-offs
-4. Present design sections for approval
-5. Write design doc after approval
+      return `你正在使用头脑风暴(brainstorming)技能来设计功能。
+请用中文回复，遵循以下流程：
+1. 首先探索项目上下文（文件、文档、最近提交）
+2. 逐个提出澄清问题
+3. 提出2-3个方案并说明优缺点
+4. 展示设计章节供确认
+5. 确认后编写设计文档
 
-IMPORTANT: Never skip to implementation without completing the design phase.
-Ask questions to clarify before proposing solutions.`;
+重要：不要跳过设计阶段直接进入实现。
+在提出方案前先通过提问澄清需求。`;
 
     case 'writing-plans':
-      return `You are using the writing-plans skill to create implementation plans.
-Plans should include:
-- Exact file paths for each task
-- Complete code snippets
-- Verification commands
-- Bite-sized steps (2-5 minutes each)
+      return `你正在使用编写计划(writing-plans)技能来创建实现计划。
+请用中文回复，计划应包含：
+- 每个任务的精确文件路径
+- 完整的代码片段
+- 验证命令
+- 小步骤（每个2-5分钟）
 
-Each task has checkbox syntax: - [ ] Step description`;
+每个任务使用复选框语法：- [ ] 步骤描述`;
 
     case 'executing-plans':
-      return `You are using the executing-plans skill to implement a plan.
-For each task:
-1. Mark as in_progress
-2. Follow steps exactly
-3. Run verifications
-4. Mark completed
+      return `你正在使用执行计划(executing-plans)技能来实现计划。
+请用中文回复，对每个任务：
+1. 标记为进行中
+2. 严格按步骤执行
+3. 运行验证
+4. 标记完成
 
-Stop and ask for help when blocked. Don't guess.`;
+遇到阻塞时停下来寻求帮助，不要猜测。`;
 
     case 'tdd-development':
-      return `You are using TDD (Test-Driven Development).
-Follow Red-Green-Refactor:
-1. Write failing test first
-2. Implement minimal code to pass
-3. Refactor for clarity
+      return `你正在使用测试驱动开发(TDD)。
+请用中文回复，遵循红-绿-重构循环：
+1. 先编写失败的测试
+2. 实现最小代码使测试通过
+3. 重构以提高代码质量
 
-Always verify test status after each step.`;
+每步后都要验证测试状态。`;
 
     case 'code-review':
-      return `You are reviewing code for:
-- Style and formatting
-- Security vulnerabilities
-- Performance issues
-- Error handling
-- Best practices
+      return `你正在进行代码审查，关注：
+- 风格和格式
+- 安全漏洞
+- 性能问题
+- 错误处理
+- 最佳实践
 
-Provide actionable feedback with specific recommendations.`;
+请用中文回复，提供可操作的具体建议。`;
 
     case 'debugging':
-      return `You are debugging an issue.
-Process:
-1. Collect error info and logs
-2. Reproduce the issue
-3. Locate root cause
-4. Propose fix
-5. Implement fix
-6. Verify fix works
-7. Check for regression
+      return `你正在调试问题。
+请用中文回复，流程：
+1. 收集错误信息和日志
+2. 重现问题
+3. 定位根本原因
+4. 提出修复方案
+5. 实现修复
+6. 验证修复有效
+7. 检查是否有回归
 
-Stop and ask for help when stuck.`;
+卡住时停下来寻求帮助。`;
 
     default:
-      return `You are a helpful assistant executing a skill step.
-Provide clear, actionable output for the given step.`;
+      return `你是一个帮助执行技能步骤的助手。
+请用中文回复，为给定步骤提供清晰、可操作的输出。`;
   }
 }
 
@@ -235,7 +235,7 @@ async function callLLM(
   settings: { apiKey?: string; baseUrl?: string; model?: string }
 ): Promise<string> {
   if (!settings.apiKey) {
-    return 'Error: No API key configured. Please set up API key in Settings.';
+    return '错误: 未配置 API Key，请在设置中配置 API Key。';
   }
 
   const baseUrl = settings.baseUrl || 'https://api.anthropic.com';
@@ -251,63 +251,27 @@ async function callLLM(
     ]
   };
 
-  // 根据baseUrl判断API提供商
-  const apiProvider = baseUrl.includes('dashscope') ? 'aliyun' : 'anthropic';
-
   try {
-    if (apiProvider === 'aliyun') {
-      // 阿里云百炼 API
-      const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          input: {
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt }
-            ]
-          },
-          parameters: {
-            max_tokens: 4000,
-            result_format: 'message'
-          }
-        }),
-      });
+    // 使用 Anthropic 兼容 API 格式
+    const response = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': settings.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(requestBody),
+    });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        return `API Error: ${response.status} - ${errorText}`;
-      }
-
-      const data = await response.json();
-      return data.output?.choices?.[0]?.message?.content || data.output?.text || 'No response';
-
-    } else {
-      // Anthropic API
-      const response = await fetch(`${baseUrl}/v1/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': settings.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        return `API Error: ${response.status} - ${errorText}`;
-      }
-
-      const data = await response.json();
-      const content = data.content?.find((c: { type: string }) => c.type === 'text');
-      return content?.text || 'No response';
+    if (!response.ok) {
+      const errorText = await response.text();
+      return `API 错误: ${response.status} - ${errorText}`;
     }
+
+    const data = await response.json();
+    const content = data.content?.find((c: { type: string }) => c.type === 'text');
+    return content?.text || '无响应';
   } catch (error) {
-    return `Error calling API: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    return `调用 API 出错: ${error instanceof Error ? error.message : '未知错误'}`;
   }
 }

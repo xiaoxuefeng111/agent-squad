@@ -92,8 +92,19 @@ export function NewTaskForm({ isOpen, onClose, onSubmit }: NewTaskFormProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
+      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto relative">
+        {/* 右上角关闭按钮 */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+          title="关闭"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="flex justify-between items-center mb-4 pr-8">
           <h2 className="text-xl font-bold text-white">创建新任务</h2>
           <div className="text-sm text-gray-400">
             {phase === 'input' && '第 1 步：填写基本信息'}
@@ -220,6 +231,25 @@ export function NewTaskForm({ isOpen, onClose, onSubmit }: NewTaskFormProps) {
                   className="px-4 py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors"
                 >
                   返回修改
+                </button>
+              </div>
+            )}
+
+            {!skillCompleted && (
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setPhase('input')}
+                  className="px-4 py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors"
+                >
+                  ← 返回
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                >
+                  取消创建
                 </button>
               </div>
             )}

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 
@@ -38,15 +37,10 @@ export async function POST(request: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: '请先设置 API Key' },
+        { error: '请先在设置中配置 API Key' },
         { status: 400 }
       );
     }
-
-    // 创建客户端
-    const client = new Anthropic({
-      baseURL: baseUrl || undefined,
-    });
 
     // 获取模板信息
     const templates: Record<string, { name: string; roles: string[] }> = {
@@ -58,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const template = templates[templateId] || templates['generic'];
 
-    // 系统提示词
+    // 系统提示词（中文）
     const systemPrompt = `你是龙虾军团(Agent Squad)的任务规划助手。你的职责是帮助用户理清任务需求，制定执行方案。
 
 当前选择的场景模板: ${template.name}
@@ -92,21 +86,40 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 调用 API
-    const response = await client.messages.create({
-      model,
-      max_tokens: 2000,
-      system: systemPrompt,
-      messages: conversationMessages.map(m => ({
-        role: m.role,
-        content: m.content,
-      })),
+    // 调用 API（使用 Anthropic 兼容格式）
+    const apiBaseUrl = baseUrl || 'https://api.anthropic.com';
+    const response = await fetch(`${apiBaseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages: conversationMessages.map(m => ({
+          role: m.role,
+          content: m.content,
+        })),
+      }),
     });
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      return NextResponse.json(
+        { error: `API 错误: ${response.status} - ${errorText}` },
+        { status: 500 }
+      );
+    }
+
+    const data = await response.json();
+
     // 提取回复内容
-    const replyContent = response.content
-      .filter(block => block.type === 'text')
-      .map(block => (block as any).text)
+    const replyContent = data.content
+      .filter((block: { type: string }) => block.type === 'text')
+      .map((block: { text: string }) => block.text)
       .join('\n');
 
     return NextResponse.json({
